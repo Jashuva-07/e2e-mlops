@@ -13,7 +13,6 @@
 # limitations under the License.
 """TFX Custom Python Components."""
 
-
 import sys
 import os
 import json
@@ -33,6 +32,8 @@ from tfx.dsl.component.experimental.annotations import (
 from tfx.types.standard_artifacts import HyperParameters, ModelBlessing
 from tfx.types.experimental.simple_artifacts import File as UploadedModel
 from tfx.types.experimental.simple_artifacts import Dataset
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import BatchNormalization
 
 from google.cloud import aiplatform as vertex_ai
 
@@ -43,11 +44,9 @@ sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR, "..")))
 
 from src.preprocessing import etl
 
-
 HYPERPARAM_FILENAME = "hyperparameters.json"
 SERVING_DATA_PREFIX = "serving-data-"
 PREDICTION_RESULTS_PREFIX = "prediction.results-*"
-
 
 @component
 def hyperparameters_gen(
@@ -57,7 +56,6 @@ def hyperparameters_gen(
     hidden_units: Parameter[str],
     hyperparameters: OutputArtifact[HyperParameters],
 ):
-
     hp_dict = dict()
     hp_dict["num_epochs"] = num_epochs
     hp_dict["batch_size"] = batch_size
@@ -71,7 +69,6 @@ def hyperparameters_gen(
     io_utils.write_string_file(hyperparams_uri, json.dumps(hp_dict))
     logging.info(f"Hyperparameters are written to: {hyperparams_uri}")
 
-
 @component
 def vertex_model_uploader(
     project: Parameter[str],
@@ -84,9 +81,8 @@ def vertex_model_uploader(
     explanation_config: Parameter[str]="",
     labels: Parameter[str]="",
 ):
-
     vertex_ai.init(project=project, location=region)
-    
+
     blessing = artifact_utils.get_single_instance([model_blessing])
     if not model_utils.is_model_blessed(blessing):
         logging.info(f"Model is not uploaded to Vertex AI because it was not blessed by the evaluator.")
@@ -111,7 +107,7 @@ def vertex_model_uploader(
     except:
         explanation_metadata = None
         explanation_parameters = None
-        
+
     try:
         labels = json.loads(labels)
     except:
@@ -133,7 +129,6 @@ def vertex_model_uploader(
     uploaded_model.set_string_custom_property("model_uri", model_uri)
     uploaded_model.set_int_custom_property("uploaded", 1)
 
-
 @component
 def bigquery_data_gen(
     sql_query: Parameter[str],
@@ -141,7 +136,6 @@ def bigquery_data_gen(
     beam_args: Parameter[str],
     serving_dataset: OutputArtifact[Dataset],
 ):
-
     output_dir = os.path.join(
         artifact_utils.get_single_uri([serving_dataset]), SERVING_DATA_PREFIX
     )
@@ -156,7 +150,6 @@ def bigquery_data_gen(
     etl.run_extract_pipeline(pipeline_args)
     logging.info("Data extraction completed.")
 
-
 @component
 def vertex_batch_prediction(
     project: Parameter[str],
@@ -168,7 +161,6 @@ def vertex_batch_prediction(
     serving_dataset: InputArtifact[Dataset],
     prediction_results: OutputArtifact[Dataset],
 ):
-
     job_resources = json.loads(job_resources)
     gcs_source_pattern = (
         os.path.join(
@@ -178,7 +170,7 @@ def vertex_batch_prediction(
     )
     gcs_destination_prefix = artifact_utils.get_single_uri([prediction_results])
     job_name = f"extract-{model_display_name}-serving-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    
+
     vertex_ai.init(project=project, location=region)
 
     logging.info("Submitting Vertex AI batch prediction job...")
@@ -193,11 +185,10 @@ def vertex_batch_prediction(
         **job_resources,
     )
     logging.info("Batch prediction job completed.")
-    
+
     prediction_results.set_string_custom_property(
         "batch_prediction_job", batch_prediction_job.gca_resource.name
     )
-
 
 @component
 def datastore_prediction_writer(
@@ -206,7 +197,6 @@ def datastore_prediction_writer(
     beam_args: Parameter[str],
     prediction_results: InputArtifact[Dataset],
 ):
-
     prediction_results_dir = os.path.join(
         artifact_utils.get_single_uri([prediction_results])
     )

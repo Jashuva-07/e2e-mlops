@@ -38,13 +38,22 @@ NUMERICAL_FEATURE_NAMES = [
     "euclidean",
 ]
 
+# EMBEDDING_CATEGORICAL_FEATURES = {
+#     "trip_month": 2,
+#     "trip_day": 4,
+#     "trip_hour": 3,
+#     "pickup_grid": 3,
+#     "dropoff_grid": 3,
+#     "loc_cross": 10,
+# }
+
 EMBEDDING_CATEGORICAL_FEATURES = {
-    "trip_month": 2,
-    "trip_day": 4,
-    "trip_hour": 3,
-    "pickup_grid": 3,
-    "dropoff_grid": 3,
-    "loc_cross": 10,
+    "trip_month": 4,
+    "trip_day": 30,
+    "trip_hour": 9,
+    "pickup_grid":12,
+    "dropoff_grid": 12,
+    "loc_cross": 84,
 }
 
 ONEHOT_CATEGORICAL_FEATURE_NAMES = ["payment_type", "trip_day_of_week"]

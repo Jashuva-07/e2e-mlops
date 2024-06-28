@@ -1,20 +1,4 @@
-# Copyright 2021 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Functions for exporting the model for serving."""
-
 import logging
-
 import tensorflow as tf
 import tensorflow_transform as tft
 import tensorflow_data_validation as tfdv
@@ -23,21 +7,16 @@ import tensorflow.keras as keras
 
 from src.common import features
 
-
 def _get_serve_tf_examples_fn(classifier, tft_output, raw_feature_spec):
-    """Returns a function that parses a serialized tf.Example and applies TFT."""
-
     classifier.tft_layer = tft_output.transform_features_layer()
 
     @tf.function
     def serve_tf_examples_fn(serialized_tf_examples):
-        """Returns the output to be used in the serving signature."""
         for key in list(raw_feature_spec.keys()):
             if key not in features.FEATURE_NAMES:
                 raw_feature_spec.pop(key)
 
         parsed_features = tf.io.parse_example(serialized_tf_examples, raw_feature_spec)
-
         transformed_features = classifier.tft_layer(parsed_features)
         logits = classifier(transformed_features)
         probabilities = keras.activations.sigmoid(logits)
@@ -45,16 +24,11 @@ def _get_serve_tf_examples_fn(classifier, tft_output, raw_feature_spec):
 
     return serve_tf_examples_fn
 
-
 def _get_serve_features_fn(classifier, tft_output):
-    """Returns a function that accept a dictionary of features and applies TFT."""
-
     classifier.tft_layer = tft_output.transform_features_layer()
 
     @tf.function
     def serve_features_fn(raw_features):
-        """Returns the output to be used in the serving signature."""
-
         transformed_features = classifier.tft_layer(raw_features)
         logits = classifier(transformed_features)
         neg_probabilities = keras.activations.sigmoid(logits)
@@ -66,11 +40,7 @@ def _get_serve_features_fn(classifier, tft_output):
 
     return serve_features_fn
 
-
-def export_serving_model(
-    classifier, serving_model_dir, raw_schema_location, tft_output_dir
-):
-
+def export_serving_model(classifier, serving_model_dir, raw_schema_location, tft_output_dir):
     raw_schema = tfdv.load_schema_text(raw_schema_location)
     raw_feature_spec = schema_utils.schema_as_feature_spec(raw_schema).feature_spec
 
@@ -84,17 +54,25 @@ def export_serving_model(
         if feature_name in features.FEATURE_NAMES
     }
 
-    signatures = {
-        "serving_default": _get_serve_features_fn(
-            classifier, tft_output
-        ).get_concrete_function(features_input_signature),
-        "serving_tf_example": _get_serve_tf_examples_fn(
-            classifier, tft_output, raw_feature_spec
-        ).get_concrete_function(
-            tf.TensorSpec(shape=[None], dtype=tf.string, name="examples")
-        ),
-    }
+    serve_features_fn = _get_serve_features_fn(classifier, tft_output)
+    serve_tf_examples_fn = _get_serve_tf_examples_fn(classifier, tft_output, raw_feature_spec)
 
     logging.info("Model export started...")
-    classifier.save(serving_model_dir, signatures=signatures)
+
+    # Remove the existing 'signatures' attribute if it exists
+    if hasattr(classifier, 'signatures'):
+        delattr(classifier, 'signatures')
+
+    # Save the model for serving
+    tf.saved_model.save(
+        classifier,
+        serving_model_dir,
+        signatures={
+            "serving_default": serve_features_fn.get_concrete_function(features_input_signature),
+            "serving_tf_example": serve_tf_examples_fn.get_concrete_function(
+                tf.TensorSpec(shape=[None], dtype=tf.string, name="examples")
+            ),
+        }
+    )
+    
     logging.info("Model export completed.")

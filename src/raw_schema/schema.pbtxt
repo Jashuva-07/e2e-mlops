@@ -166,6 +166,7 @@ string_domain {
   value: "Dispute"
   value: "Mobile"
   value: "No Charge"
+  value: "Pcard"
   value: "Prcard"
   value: "Prepaid"
   value: "Unknown"

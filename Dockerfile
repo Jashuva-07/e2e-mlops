@@ -1,9 +1,22 @@
-FROM gcr.io/tfx-oss-public/tfx:1.2.0
+FROM python:3.10-slim AS builder
 
-COPY requirements.txt requirements.txt
+# Install gcc and other build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
+# Upgrade pip
+RUN pip install --upgrade pip
+
+# Install your requirements
+COPY requirements.txt  requirements.txt
 RUN pip install -r requirements.txt
+
+# Copy the source code
 
 COPY src/ src/
 
+
+# Set the PYTHONPATH environment variable
 ENV PYTHONPATH="/pipeline:${PYTHONPATH}"

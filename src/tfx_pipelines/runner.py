@@ -15,7 +15,8 @@
 
 
 import os
-from kfp.v2.google.client import AIPlatformClient
+#from kfp.v2.google.client import AIPlatformClient
+from google.cloud import aiplatform
 from tfx.orchestration import data_types
 from tfx.orchestration.kubeflow.v2 import kubeflow_v2_dag_runner
 

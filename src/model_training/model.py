@@ -1,36 +1,18 @@
-# Copyright 2021 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""A DNN keras classification model."""
-
 import tensorflow as tf
 from tensorflow import keras
-
 from src.common import features
-
 
 def create_model_inputs():
     inputs = {}
     for feature_name in features.FEATURE_NAMES:
         name = features.transformed_name(feature_name)
         if feature_name in features.NUMERICAL_FEATURE_NAMES:
-            inputs[name] = keras.layers.Input(name=name, shape=[], dtype=tf.float32)
+            inputs[name] = keras.layers.Input(name=name, shape=(1,), dtype=tf.float32)
         elif feature_name in features.categorical_feature_names():
-            inputs[name] = keras.layers.Input(name=name, shape=[], dtype=tf.int64)
+            inputs[name] = keras.layers.Input(name=name, shape=(1,), dtype=tf.int64)
         else:
             pass
     return inputs
-
 
 def _create_binary_classifier(feature_vocab_sizes, hyperparams):
     input_layers = create_model_inputs()
@@ -46,17 +28,19 @@ def _create_binary_classifier(feature_vocab_sizes, hyperparams):
                 output_dim=embedding_size,
                 name=f"{key}_embedding",
             )(input_layers[key])
+            embedding_output = keras.layers.Flatten()(embedding_output)
             layers.append(embedding_output)
         elif feature_name in features.ONEHOT_CATEGORICAL_FEATURE_NAMES:
             vocab_size = feature_vocab_sizes[feature_name]
-            onehot_layer = keras.layers.experimental.preprocessing.CategoryEncoding(
-                max_tokens=vocab_size,
-                output_mode="binary",
+            onehot_layer = keras.layers.CategoryEncoding(
+                num_tokens=vocab_size,
+                output_mode="one_hot",
                 name=f"{key}_onehot",
             )(input_layers[key])
+            onehot_layer = keras.layers.Flatten()(onehot_layer)
             layers.append(onehot_layer)
         elif feature_name in features.NUMERICAL_FEATURE_NAMES:
-            numeric_layer = tf.expand_dims(input_layers[key], -1)
+            numeric_layer = keras.layers.Reshape((1,))(input_layers[key])
             layers.append(numeric_layer)
         else:
             pass
@@ -74,12 +58,8 @@ def _create_binary_classifier(feature_vocab_sizes, hyperparams):
     model = keras.Model(inputs=input_layers, outputs=[logits])
     return model
 
-
 def create_binary_classifier(tft_output, hyperparams):
-    feature_vocab_sizes = dict()
+    feature_vocab_sizes = {}
     for feature_name in features.categorical_feature_names():
-        feature_vocab_sizes[feature_name] = tft_output.vocabulary_size_by_name(
-            feature_name
-        )
-
+        feature_vocab_sizes[feature_name] = tft_output.vocabulary_size_by_name(feature_name)
     return _create_binary_classifier(feature_vocab_sizes, hyperparams)
